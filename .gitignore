@@ -3,3 +3,4 @@ ext/*.so
 ext/*.bundle
 ext/Makefile
 ext/mkmf.log
+ext/conftest.dSYM
