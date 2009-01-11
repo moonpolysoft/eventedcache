@@ -1,0 +1,1 @@
+EventedCache is an eventmachine based memcache client.  It should be ultrafast and scalable since it leverages the power of ragel to parse memcache protocol and the scalability of eventmachine.

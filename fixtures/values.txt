@@ -1,0 +1,5 @@
+VALUE blah 0 5
+fucku
+VALUE oofo 0 5
+fuckm
+END
