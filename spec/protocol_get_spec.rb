@@ -1,12 +1,14 @@
 require File.dirname(__FILE__) + '/spec_helper'
 
-describe MemcacheProtocol do
+describe MemcacheProtocol, "in get mode" do
   before(:each) do
     @protocol = MemcacheProtocol.new
+    @protocol.mode = :get
   end
   
   it "should parse the results of a simple get response" do
     @protocol.execute "VALUE blah 0 5\r\nfucku\r\nEND\r\n"
+    @protocol.type.should  == :values
     values = @protocol.values
     values.length.should == 1
     value = values[0]
@@ -41,8 +43,31 @@ describe MemcacheProtocol do
     end
   end
   
+  it "should parse streaming chunks" do
+    keys = %w(blah blaa)
+    dater = %w(fucku fucka)
+    @protocol.execute("VALUE blah 0 5\r\nfucku\r\n").should be_false
+    @protocol.execute("VALUE blaa 0 5\r\nfucka\r\nEND\r\n").should be_true
+    @protocol.values.length.should == 2
+    values = @protocol.values
+    i=0
+    values.each do |value|
+      value.should_not be_nil
+      value.key.should == keys[i]
+      value.data.should == dater[i]
+      value.length.should == 5
+      value.cas.should == 0
+      value.flags.should == 0
+      i += 1;
+    end
+  end
+  
   it "should raise an error if the protocol gets retarded" do
-    lambda { @protocol.execute "I like turtles\r\n" }.should raise_error(ProtocolError, "Memcache protocol encountered an error with char 'I' at pos 0\n")
+    lambda { @protocol.execute "I like turtles\r\n" }.should raise_error(ProtocolError, "Memcache protocol encountered an error with char 'I' at pos 0")
+  end
+  
+  it "should freak out if we try to get to set mode" do
+    lambda { @protocol.execute "STORED\r\n" }.should raise_error(ProtocolError, "Memcache protocol encountered an error with char 'T' at pos 1")
   end
   
   it "should raise if the server sends regular error" do

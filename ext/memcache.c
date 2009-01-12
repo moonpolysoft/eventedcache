@@ -11,12 +11,28 @@ static VALUE cMemcacheProtocol;
 static VALUE cValues;
 static VALUE cValue;
 
+static ID cGetId;
+static ID cSetId;
+static ID cDeleteId;
+static ID cIncId;
+static ID cStatsId;
+
+static ID cValuesId;
+static ID cStoredId;
+static ID cNotStoredId;
+static ID cExistsId;
+static ID cNotFoundId;
+static ID cDeletedId;
+static ID cIncValueId;
+static ID cOkId;
+
 static void rb_memcache_protocol_free(void *ptr) {
   //will need to recursively free all of the bullshit associated with this
   dprintf("entering free\n");
   protocol_t *protocol = (protocol_t *)ptr;
   int i, n;
   value_t *value;
+  stat_t *stat;
   
   for(i=0; i<protocol->values.len; i++) {
     value = &protocol->values.array[i];
@@ -32,6 +48,11 @@ static void rb_memcache_protocol_free(void *ptr) {
   if (protocol->error) {
     free(protocol->error);
   }
+  for(i=0; i<protocol->stats.len; i++) {
+    stat = &protocol->stats.array[i];
+    if (stat->key) { free(stat->key); }
+    if (stat->string_val) { free(stat->string_val); }
+  } 
   dprintf("freeing protocol\n");
   free(protocol);
 }
@@ -48,6 +69,13 @@ static VALUE rb_memcache_protocol_alloc(VALUE klass) {
   return Data_Wrap_Struct(klass, NULL, rb_memcache_protocol_free, protocol);
 }
 
+static VALUE rb_memcache_protocol_is_finished(VALUE self) {
+  protocol_t *protocol = NULL;
+  Data_Get_Struct(self, protocol_t, protocol);
+  
+  return memcache_protocol_is_finished(protocol) ? Qtrue : Qfalse;
+}
+
 static VALUE rb_memcache_protocol_execute(VALUE self, VALUE data) {
   protocol_t *protocol = NULL;
   int cs;
@@ -56,7 +84,7 @@ static VALUE rb_memcache_protocol_execute(VALUE self, VALUE data) {
   dprintf("executing with data '%s'\n", RSTRING(data)->ptr);
   cs = memcache_protocol_execute(protocol, RSTRING(data)->ptr, RSTRING(data)->len, 0);
   if (memcache_protocol_has_error(protocol)) {
-    rb_raise(cProtocolError, "Memcache protocol encountered an error with char '%c' at pos %d\n", protocol->err_char, protocol->err_pos);
+    rb_raise(cProtocolError, "Memcache protocol encountered an error with char '%c' at pos %d", protocol->err_char, protocol->err_pos);
   } else {
     switch (protocol->type) {
       case SERVER_ERROR:
@@ -66,8 +94,22 @@ static VALUE rb_memcache_protocol_execute(VALUE self, VALUE data) {
       case ERROR:
         rb_raise(cCommandError, "Memcache returned a command error.\n");
     }
-    return INT2FIX(cs);
+    return rb_memcache_protocol_is_finished(self);
   }
+}
+
+static VALUE rb_memcache_protocol_setmode(VALUE self, VALUE mode) {
+  protocol_t *protocol = NULL;
+  Data_Get_Struct(self, protocol_t, protocol);
+  int code = 0;
+  ID mode_id = SYM2ID(mode);
+  if (cGetId == mode_id){ code = memcache_protocol_get(); }
+  else if (cSetId == mode_id){ code = memcache_protocol_set(); }
+  else if (cDeleteId == mode_id) { code = memcache_protocol_delete(); }
+  else if (cIncId == mode_id) { code = memcache_protocol_inc(); }
+  else if (cStatsId == mode_id) { code = memcache_protocol_stats(); }
+  
+  memcache_protocol_mode(protocol, code);
 }
 
 static VALUE rb_memcache_protocol_has_error(VALUE self) {
@@ -77,11 +119,31 @@ static VALUE rb_memcache_protocol_has_error(VALUE self) {
   return memcache_protocol_has_error(protocol) ? Qtrue : Qfalse;
 }
 
-static VALUE rb_memcache_protocol_is_finished(VALUE self) {
+static VALUE rb_memcache_protocol_type(VALUE self) {
   protocol_t *protocol = NULL;
   Data_Get_Struct(self, protocol_t, protocol);
   
-  return memcache_protocol_is_finished(protocol) ? Qtrue : Qfalse;
+  switch(protocol->type) {
+    case VALUES:
+      return ID2SYM(cValuesId);
+    case STORED:
+      return ID2SYM(cStoredId);
+    case NOT_STORED:
+      return ID2SYM(cNotStoredId);
+    case EXISTS:
+      return ID2SYM(cExistsId);
+    case NOT_FOUND:
+      return ID2SYM(cNotFoundId);
+    case DELETED:
+      return ID2SYM(cDeletedId);
+    case INC_VALUE:
+      return ID2SYM(cIncValueId);
+    case STATS:
+      return ID2SYM(cStatsId);
+    case OK:
+      return ID2SYM(cOkId);
+  }
+  return Qnil;
 }
 
 static VALUE rb_memcache_protocol_values(VALUE self) {
@@ -89,6 +151,23 @@ static VALUE rb_memcache_protocol_values(VALUE self) {
   Data_Get_Struct(self, protocol_t, protocol);
   
   return Data_Wrap_Struct(cValues, NULL, rb_null_free, &protocol->values);
+}
+
+static VALUE rb_memcache_protocol_stats(VALUE self) {
+  protocol_t *protocol = NULL;
+  Data_Get_Struct(self, protocol_t, protocol);
+  VALUE hash = rb_hash_new();
+  int i;
+  
+  for(i=0;i<protocol->stats.len; i++) {
+    VALUE key, value;
+    stat_t* stat = &protocol->stats.array[i];
+    key = (stat->key) ? rb_str_new2(stat->key) : ULONG2NUM(stat->num_key);
+    value = (stat->string_val) ? rb_str_new2(stat->string_val) : ULONG2NUM(stat->num_val);
+    rb_hash_aset(hash, key, value);
+  }
+  
+  return hash;
 }
 
 static VALUE rb_values_subscript(VALUE self, VALUE index) {
@@ -103,6 +182,13 @@ static VALUE rb_values_subscript(VALUE self, VALUE index) {
   } else {
     return Data_Wrap_Struct(cValue, NULL, rb_null_free, &values->array[i]);
   }
+}
+
+static VALUE rb_memcache_protocol_inc_value(VALUE self) {
+  protocol_t *protocol = NULL;
+  Data_Get_Struct(self, protocol_t, protocol);
+  
+  return LONG2FIX(protocol->value);
 }
 
 static VALUE rb_values_each(VALUE self) {
@@ -154,12 +240,31 @@ void Init_memcache_protocol() {
   cClientError = rb_define_class_under(mEventedCache, "ClientError", rb_eStandardError);
   cServerError = rb_define_class_under(mEventedCache, "ServerError", rb_eStandardError);
   
+  cGetId = rb_intern("get");
+  cSetId = rb_intern("set");
+  cDeleteId = rb_intern("delete");
+  cIncId = rb_intern("inc");
+  cStatsId = rb_intern("stats");
+  
+  cValuesId = rb_intern("values");
+  cStoredId = rb_intern("stored");
+  cNotStoredId = rb_intern("not_stored");
+  cExistsId = rb_intern("exists");
+  cNotFoundId = rb_intern("not_found");
+  cDeletedId = rb_intern("deleted");
+  cIncValueId = rb_intern("inc_value");
+  cOkId = rb_intern("ok");
+  
   cMemcacheProtocol = rb_define_class_under(mEventedCache, "MemcacheProtocol", rb_cObject);
   rb_define_alloc_func(cMemcacheProtocol, rb_memcache_protocol_alloc);
+  rb_define_method(cMemcacheProtocol, "mode=", rb_memcache_protocol_setmode,1);
   rb_define_method(cMemcacheProtocol, "execute", rb_memcache_protocol_execute,1);
   rb_define_method(cMemcacheProtocol, "error?", rb_memcache_protocol_has_error,0);
+  rb_define_method(cMemcacheProtocol, "type", rb_memcache_protocol_type,0);
   rb_define_method(cMemcacheProtocol, "finished?", rb_memcache_protocol_is_finished,0);
   rb_define_method(cMemcacheProtocol, "values", rb_memcache_protocol_values,0);
+  rb_define_method(cMemcacheProtocol, "stats", rb_memcache_protocol_stats,0);
+  rb_define_method(cMemcacheProtocol, "inc_value", rb_memcache_protocol_inc_value,0);
   
   cValues = rb_define_class_under(mEventedCache, "Values", rb_cObject);
   rb_define_method(cValues, "[]", rb_values_subscript, 1);
