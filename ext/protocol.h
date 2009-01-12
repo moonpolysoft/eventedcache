@@ -1,4 +1,4 @@
-#define DEBUG
+
 
 #ifdef DEBUG
 #define dprintf(msg, args...) printf(msg, ##args);
@@ -18,6 +18,7 @@
 #define INC_VALUE 6
 #define STATS 7
 #define OK 8
+#define VERSION 9
 
 
 typedef struct _value_t {
@@ -57,6 +58,7 @@ typedef struct _protocol_t {
   char* error;
   char err_char;
   int err_pos;
+  char* version;
 } protocol_t;
 
 int memcache_protocol_get();
@@ -64,6 +66,8 @@ int memcache_protocol_set();
 int memcache_protocol_delete();
 int memcache_protocol_inc();
 int memcache_protocol_stats();
+int memcache_protocol_flush_all();
+int memcache_protocol_version();
 
 int memcache_protocol_init(protocol_t *protocol);
 void memcache_protocol_mode(protocol_t *protocol, int mode);

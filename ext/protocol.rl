@@ -167,6 +167,14 @@
     protocol->type = OK;
   }
   
+  action handle_version {
+    len = MARK_LEN(fpc);
+    protocol->type = VERSION;
+    protocol->version = malloc(len+1);
+    strncpy(protocol->version, protocol->mark, len);
+    protocol->version[len] = 0;
+  }
+  
   key = [^ ]+ >mark;
   string = [^\r]+ >mark;
   integer = digit+ >mark;
@@ -197,6 +205,7 @@
   inc := (not_found | inc_value | errors) $!handle_error;
   stats := ((stat_lines | size_stat_lines)* >start_stats end newline | errors) $!handle_error;
   flush_all := "OK" %handle_flush_all newline;
+  version := "VERSION" space  string %handle_version newline;
 }%%
 
 %% write data;
@@ -206,6 +215,8 @@ int memcache_protocol_set() { return memcache_protocol_en_set; }
 int memcache_protocol_delete() { return memcache_protocol_en_delete; }
 int memcache_protocol_inc() { return memcache_protocol_en_inc; }
 int memcache_protocol_stats() { return memcache_protocol_en_stats; }
+int memcache_protocol_flush_all() { return memcache_protocol_en_flush_all;}
+int memcache_protocol_version() { return memcache_protocol_en_version; }
 
 #define VALUES_STARTING_CAP 5
 #define STATS_STARTING_CAP 20
@@ -216,6 +227,7 @@ int memcache_protocol_init(protocol_t *protocol) {
   //we want to start in one of the prescribed modes
   protocol->cs = cs;
   protocol->error = NULL;
+  protocol->version = NULL;
   protocol->mark = 0;
   protocol->values.cap = VALUES_STARTING_CAP;
   protocol->values.len = 0;

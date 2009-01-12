@@ -16,6 +16,8 @@ static ID cSetId;
 static ID cDeleteId;
 static ID cIncId;
 static ID cStatsId;
+static ID cFlushAllId;
+static ID cVersionId;
 
 static ID cValuesId;
 static ID cStoredId;
@@ -47,6 +49,9 @@ static void rb_memcache_protocol_free(void *ptr) {
   }
   if (protocol->error) {
     free(protocol->error);
+  }
+  if (protocol->version) {
+    free(protocol->version);
   }
   for(i=0; i<protocol->stats.len; i++) {
     stat = &protocol->stats.array[i];
@@ -108,6 +113,8 @@ static VALUE rb_memcache_protocol_setmode(VALUE self, VALUE mode) {
   else if (cDeleteId == mode_id) { code = memcache_protocol_delete(); }
   else if (cIncId == mode_id) { code = memcache_protocol_inc(); }
   else if (cStatsId == mode_id) { code = memcache_protocol_stats(); }
+  else if (cFlushAllId == mode_id) { code = memcache_protocol_flush_all(); }
+  else if (cVersionId == mode_id) { code = memcache_protocol_version(); }
   
   memcache_protocol_mode(protocol, code);
 }
@@ -142,6 +149,8 @@ static VALUE rb_memcache_protocol_type(VALUE self) {
       return ID2SYM(cStatsId);
     case OK:
       return ID2SYM(cOkId);
+    case VERSION:
+      return ID2SYM(cVersionId);
   }
   return Qnil;
 }
@@ -168,6 +177,17 @@ static VALUE rb_memcache_protocol_stats(VALUE self) {
   }
   
   return hash;
+}
+
+static VALUE rb_memcache_protocol_version(VALUE self) {
+  protocol_t *protocol = NULL;
+  Data_Get_Struct(self, protocol_t, protocol);
+  
+  if (protocol->version) {
+    return rb_str_new2(protocol->version);
+  } else {
+    return Qnil;
+  }
 }
 
 static VALUE rb_values_subscript(VALUE self, VALUE index) {
@@ -245,6 +265,8 @@ void Init_memcache_protocol() {
   cDeleteId = rb_intern("delete");
   cIncId = rb_intern("inc");
   cStatsId = rb_intern("stats");
+  cFlushAllId = rb_intern("flush_all");
+  cVersionId = rb_intern("version");
   
   cValuesId = rb_intern("values");
   cStoredId = rb_intern("stored");
@@ -264,6 +286,7 @@ void Init_memcache_protocol() {
   rb_define_method(cMemcacheProtocol, "finished?", rb_memcache_protocol_is_finished,0);
   rb_define_method(cMemcacheProtocol, "values", rb_memcache_protocol_values,0);
   rb_define_method(cMemcacheProtocol, "stats", rb_memcache_protocol_stats,0);
+  rb_define_method(cMemcacheProtocol, "version", rb_memcache_protocol_version,0);
   rb_define_method(cMemcacheProtocol, "inc_value", rb_memcache_protocol_inc_value,0);
   
   cValues = rb_define_class_under(mEventedCache, "Values", rb_cObject);
