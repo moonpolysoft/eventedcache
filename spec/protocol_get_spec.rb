@@ -20,6 +20,20 @@ describe MemcacheProtocol, "in get mode" do
     value.flags.should == 0
   end
   
+  it "should parse a cas gets response" do
+    @protocol.execute "VALUE blah 0 5 1\r\nfucku\r\nEND\r\n"
+    @protocol.type.should  == :values
+    values = @protocol.values
+    values.length.should == 1
+    value = values[0]
+    value.should_not be_nil
+    value.data.should == "fucku"
+    value.length.should == 5
+    value.key.should == "blah"
+    value.cas.should == 1
+    value.flags.should == 0
+  end
+  
   it "should parse an empty get response" do
     @protocol.execute "END\r\n"
     @protocol.values.length.should == 0

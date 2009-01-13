@@ -5,6 +5,10 @@ describe MemcacheProtocol, "with other crap" do
     @protocol = MemcacheProtocol.new
   end
   
+  it "should start in the start state" do
+    @protocol.start_state?.should be_true
+  end
+  
   it "should parse the ok response from flush_all" do
     @protocol.mode = :flush_all
     @protocol.execute("OK\r\n").should be_true
