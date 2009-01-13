@@ -70,7 +70,9 @@ int memcache_protocol_flush_all();
 int memcache_protocol_version();
 
 int memcache_protocol_init(protocol_t *protocol);
+int memcache_protocol_reset(protocol_t *protocol);
 void memcache_protocol_mode(protocol_t *protocol, int mode);
 int memcache_protocol_execute(protocol_t *protocol, char *buffer, int len, int off);
+int memcache_protocol_is_start_state(protocol_t *protocol);
 int memcache_protocol_is_finished(protocol_t *protocol);
 int memcache_protocol_has_error(protocol_t *protocol);

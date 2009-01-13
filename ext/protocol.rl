@@ -178,7 +178,7 @@
   key = [^ ]+ >mark;
   string = [^\r]+ >mark;
   integer = digit+ >mark;
-  value = ("VALUE" space key %key space integer %flags space integer %data_len (integer %cas)? newline) >start_value;
+  value = ("VALUE" space key %key space integer %flags space integer %data_len (space integer %cas)? newline) >start_value;
   get_response = (
       value %handle_get_response
       (any when data_len_test)+ >mark %data newline %end_value
@@ -241,6 +241,58 @@ int memcache_protocol_init(protocol_t *protocol) {
   return 0;
 }
 
+int memcache_protocol_reset(protocol_t *protocol) {
+  int cs = 0;
+  %% write init;
+  protocol->cs = cs;
+  if (protocol->error) {
+    free(protocol->error);
+    protocol->error = NULL;
+  }
+  if (protocol->version) {
+    free(protocol->version);
+    protocol->version = NULL;
+  }
+  protocol->values.len = 0;
+  bzero(protocol->values.array, protocol->values.cap * sizeof(value_t));
+  protocol->stats.len = 0;
+  bzero(protocol->stats.array, protocol->stats.cap * sizeof(value_t));
+  return 0;
+}
+
+void memcache_protocol_free(protocol_t *protocol) {
+  //will need to recursively free all of the bullshit associated with this
+  dprintf("entering free\n");
+  int i, n;
+  value_t *value;
+  stat_t *stat;
+  
+  for(i=0; i<protocol->values.len; i++) {
+    value = &protocol->values.array[i];
+    dprintf("freeing key for %d\n", i);
+    if (value->key) {free(value->key);}
+    dprintf("freeing data for %d\n", i);
+    if (value->data) {free(value->data);}
+  }
+  if (protocol->values.array) {
+    dprintf("freeing values array %p\n", protocol->values.array);
+    free(protocol->values.array);
+  }
+  if (protocol->error) {
+    free(protocol->error);
+  }
+  if (protocol->version) {
+    free(protocol->version);
+  }
+  for(i=0; i<protocol->stats.len; i++) {
+    stat = &protocol->stats.array[i];
+    if (stat->key) { free(stat->key); }
+    if (stat->string_val) { free(stat->string_val); }
+  } 
+  dprintf("freeing protocol\n");
+  free(protocol);
+}
+
 void memcache_protocol_mode(protocol_t *protocol, int mode) {
   protocol->cs = mode;
 }
@@ -269,6 +321,10 @@ int memcache_protocol_execute(protocol_t *protocol, char* buffer, int len, int o
 //anything above first final is a final state
 int memcache_protocol_is_finished(protocol_t *protocol) {
   return protocol->cs >= memcache_protocol_first_final;
+}
+
+int memcache_protocol_is_start_state(protocol_t *protocol) {
+  return protocol->cs == memcache_protocol_start;
 }
 
 int memcache_protocol_has_error(protocol_t *protocol) {
