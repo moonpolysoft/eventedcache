@@ -28,38 +28,19 @@ static ID cDeletedId;
 static ID cIncValueId;
 static ID cOkId;
 
+static VALUE rb_memcache_protocol_reset(VALUE self) {
+  protocol_t *protocol;
+  Data_Get_Struct(self, protocol_t, protocol);
+  
+  memcache_protocol_reset(protocol);
+  return Qnil;
+}
+
 static void rb_memcache_protocol_free(void *ptr) {
   //will need to recursively free all of the bullshit associated with this
   dprintf("entering free\n");
   protocol_t *protocol = (protocol_t *)ptr;
-  int i, n;
-  value_t *value;
-  stat_t *stat;
-  
-  for(i=0; i<protocol->values.len; i++) {
-    value = &protocol->values.array[i];
-    dprintf("freeing key for %d\n", i);
-    if (value->key) {free(value->key);}
-    dprintf("freeing data for %d\n", i);
-    if (value->data) {free(value->data);}
-  }
-  if (protocol->values.array) {
-    dprintf("freeing values array %p\n", protocol->values.array);
-    free(protocol->values.array);
-  }
-  if (protocol->error) {
-    free(protocol->error);
-  }
-  if (protocol->version) {
-    free(protocol->version);
-  }
-  for(i=0; i<protocol->stats.len; i++) {
-    stat = &protocol->stats.array[i];
-    if (stat->key) { free(stat->key); }
-    if (stat->string_val) { free(stat->string_val); }
-  } 
-  dprintf("freeing protocol\n");
-  free(protocol);
+  memcache_protocol_free(protocol);
 }
 
 static void rb_null_free(void *ptr) {
@@ -79,6 +60,13 @@ static VALUE rb_memcache_protocol_is_finished(VALUE self) {
   Data_Get_Struct(self, protocol_t, protocol);
   
   return memcache_protocol_is_finished(protocol) ? Qtrue : Qfalse;
+}
+
+static VALUE rb_memcache_protocol_is_start_state(VALUE self) {
+  protocol_t *protocol = NULL;
+  Data_Get_Struct(self, protocol_t, protocol);
+  
+  return memcache_protocol_is_start_state(protocol) ? Qtrue : Qfalse;
 }
 
 static VALUE rb_memcache_protocol_execute(VALUE self, VALUE data) {
@@ -284,6 +272,8 @@ void Init_memcache_protocol() {
   rb_define_method(cMemcacheProtocol, "error?", rb_memcache_protocol_has_error,0);
   rb_define_method(cMemcacheProtocol, "type", rb_memcache_protocol_type,0);
   rb_define_method(cMemcacheProtocol, "finished?", rb_memcache_protocol_is_finished,0);
+  rb_define_method(cMemcacheProtocol, "start_state?", rb_memcache_protocol_is_start_state,0);
+  rb_define_method(cMemcacheProtocol, "reset!", rb_memcache_protocol_reset,0);
   rb_define_method(cMemcacheProtocol, "values", rb_memcache_protocol_values,0);
   rb_define_method(cMemcacheProtocol, "stats", rb_memcache_protocol_stats,0);
   rb_define_method(cMemcacheProtocol, "version", rb_memcache_protocol_version,0);
