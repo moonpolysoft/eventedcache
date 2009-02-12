@@ -1,1 +1,25 @@
 EventedCache is an eventmachine based memcache client.  It should be ultrafast and scalable since it leverages the power of ragel to parse memcache protocol and the scalability of eventmachine.
+
+EM.run{
+
+  # connect to memcached
+  cache = EventedCache.connect('localhost', 11211)
+
+  # set a value that expires in 1 second
+  cache.set('key', 'hello!', 1)
+
+  # read the value
+  cache.get('key'){ |val|
+    # val.data == 'hello!'
+    puts val.data
+  }
+
+  # wait for it to expire and read it again
+  EM.add_timer(2){
+    cache.get('key'){ |val|
+      # val == nil
+      puts val
+    }
+  }
+
+}
