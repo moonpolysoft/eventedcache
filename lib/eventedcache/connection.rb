@@ -44,7 +44,18 @@ module EventedCache
       end
       send_data("dec #{key} #{value}#{options[:noreply] ? ' noreply' : ''}\r\n")
     end
-    
+
+    def set(key, value, expires = 0, &cb)
+      if !block_given?
+        noreply = true
+      else
+        @callbacks.push cb
+        @modes.push :set
+      end
+      send_data("set #{key} 0 #{expires} #{value.respond_to?(:bytesize) ? value.bytesize : value.size}#{noreply ? ' noreply' : ''}\r\n")
+      send_data("#{value}\r\n")
+    end
+
     def get(*keys, &cb)
       @callbacks.push cb
       @modes.push :get
