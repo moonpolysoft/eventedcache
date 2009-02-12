@@ -1,7 +1,12 @@
 module EventedCache
+  def self.connect host, port = 11211
+    EM.connect host, port, Connection, host, port
+  end
+
   module Connection
     
-    def initialize(*args)
+    def initialize(host, port)
+      @host, @port = host, port
       @callbacks = []
       @modes = []
       @protocol = MemcacheProtocol.new
@@ -53,7 +58,7 @@ module EventedCache
     end
     
     #em callbacks
-    def post_init
+    def connection_completed
       @connected = true
     end
     
@@ -85,6 +90,7 @@ module EventedCache
     
     def unbind
       @connected = false
+      EM.add_timer(1){ reconnect @host, @port }
     end
   end
 end
